@@ -265,11 +265,11 @@ struct IKCPSEG
 	IUINT32 resendts; //重传时间
 	IUINT32 rto; //rto时间
 	IUINT32 fastack; //被跳过的次数
-	IUINT32 xmit;
+	IUINT32 xmit; //传递次数
 	char data[1];
 };
 
-
+//应用层和UDP层之间插入kcp层
 //---------------------------------------------------------------------
 // IKCPCB
 //---------------------------------------------------------------------
@@ -277,7 +277,7 @@ struct IKCPCB
 {
 	IUINT32 state;
 	IUINT32 ts_recent, ts_lastack;
-	IUINT32 dead_link;
+	IUINT32 dead_link;  //重传次数上限
 	IUINT32 incr;
 
 	IUINT32 xmit;
@@ -302,7 +302,7 @@ struct IKCPCB
 	IUINT32 current; //当前时间戳
 
 	IUINT32 snd_una; //目前已确认过的编号，不包括此编号
-	IUINT32 snd_nxt; //下一个要发送的编号
+	IUINT32 snd_nxt; //下一个要投入网络中的编号
 	IUINT32 rcv_nxt; //下一个要接收的编号
 	IUINT32 probe; //探测远端窗口大小
 	IUINT32 ssthresh; //慢启动阈值
