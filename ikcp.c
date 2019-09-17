@@ -500,6 +500,7 @@ int ikcp_send(ikcpcb *kcp, const char *buffer, int len)
 //---------------------------------------------------------------------
 // parse ack
 //rto的计算
+//Jacobaon/Karels算法(RFC6298)
 //---------------------------------------------------------------------
 static void ikcp_update_ack(ikcpcb *kcp, IINT32 rtt)
 {
@@ -511,12 +512,15 @@ static void ikcp_update_ack(ikcpcb *kcp, IINT32 rtt)
 	else 
 	{
 		long delta = rtt - kcp->rx_srtt;
-		if (delta < 0) delta = -delta;
+		if (delta < 0) 
+			delta = -delta;
 		kcp->rx_rttval = (3 * kcp->rx_rttval + delta) / 4;
 		kcp->rx_srtt = (7 * kcp->rx_srtt + rtt) / 8;
-		if (kcp->rx_srtt < 1) kcp->rx_srtt = 1;
+		if (kcp->rx_srtt < 1)
+			kcp->rx_srtt = 1;
 	}
 	IINT32 rto = kcp->rx_srtt + _imax_(1, 4 * kcp->rx_rttval);
+
 	kcp->rx_rto = _ibound_(kcp->rx_minrto, rto, IKCP_RTO_MAX);
 }
 
