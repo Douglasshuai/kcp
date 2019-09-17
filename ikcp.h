@@ -248,24 +248,23 @@ typedef struct IQUEUEHEAD iqueue_head;
 #endif
 
 
-
 //=====================================================================
 // SEGMENT
 //=====================================================================
 struct IKCPSEG
 {
 	struct IQUEUEHEAD node;
-	IUINT32 conv;
-	IUINT32 cmd;
-	IUINT32 frg;
+	IUINT32 conv; //表示一条连接
+	IUINT32 cmd;  //4种 数据包、确认包. 请求远端窗口大小包. 应答窗口大小包
+	IUINT32 frg;  //分片
 	IUINT32 wnd;
-	IUINT32 ts;
-	IUINT32 sn;
-	IUINT32 una;
-	IUINT32 len;
-	IUINT32 resendts;
-	IUINT32 rto;
-	IUINT32 fastack;
+	IUINT32 ts;  //timestamp
+	IUINT32 sn;  //序列号
+	IUINT32 una; //此编号之前的包都确认过，但不包括此包
+	IUINT32 len; //data size
+	IUINT32 resendts; //重传时间
+	IUINT32 rto; //rto时间
+	IUINT32 fastack; //被跳过的次数
 	IUINT32 xmit;
 	char data[1];
 };
@@ -276,33 +275,68 @@ struct IKCPSEG
 //---------------------------------------------------------------------
 struct IKCPCB
 {
-	IUINT32 conv, mtu, mss, state;
-	IUINT32 snd_una, snd_nxt, rcv_nxt;
-	IUINT32 ts_recent, ts_lastack, ssthresh;
-	IINT32 rx_rttval, rx_srtt, rx_rto, rx_minrto;
-	IUINT32 snd_wnd, rcv_wnd, rmt_wnd, cwnd, probe;
-	IUINT32 current, interval, ts_flush, xmit;
-	IUINT32 nrcv_buf, nsnd_buf;
-	IUINT32 nrcv_que, nsnd_que;
-	IUINT32 nodelay, updated;
-	IUINT32 ts_probe, probe_wait;
-	IUINT32 dead_link, incr;
-	struct IQUEUEHEAD snd_queue;
-	struct IQUEUEHEAD rcv_queue;
-	struct IQUEUEHEAD snd_buf;
+	IUINT32 state;
+	IUINT32 ts_recent, ts_lastack;
+	IUINT32 dead_link;
+	IUINT32 incr;
+
+	IUINT32 xmit;
+
+	IUINT32 rx_srtt; //rtt时间
+	IUINT32 rx_rttval; //和rx_srtt决定rx_rto时间
+	IUINT32 rx_minrto; //最小rto时间
+	IUINT32 rx_rto; //当前rto时间
+
+	IUINT32 conv; //表示一条连接
+	IUINT32 mss; //最大报文段
+	IUINT32 mtu; //最大传输单元
+
+	IUINT32 ts_flush; //update下次刷新时间戳
+	IUINT32 interval; //心跳间隔
+	IUINT32 updated; //是否心跳
+	IUINT32 nodelay; //影响rto
+
+	IUINT32 ts_probe; //探测等待时间戳
+	IUINT32 probe_wait; //探测等待时间
+
+	IUINT32 current; //当前时间戳
+
+	IUINT32 snd_una; //目前已确认过的编号，不包括此编号
+	IUINT32 snd_nxt; //下一个要发送的编号
+	IUINT32 rcv_nxt; //下一个要接收的编号
+	IUINT32 probe; //探测远端窗口大小
+	IUINT32 ssthresh; //慢启动阈值
+
+	IUINT32 cwnd; //当前发送窗口大小
+	IUINT32 rmt_wnd; //远端窗口大小
+    const IUINT32 snd_wnd; //发送缓存大小
+    IUINT32 rcv_wnd; //接收窗口大小
+
+	//接受数据 data -> rcv_buf -> rcv_queue ; ikcp_input
+	//取数据 -> rcv_queue -> buffer ; ikcp_recv
+	//写数据 buffer -> snd_queue; ikcp_send
+	//发送数据 snd_queue -> snd_buf; ikcp_update
+	IUINT32 nrcv_buf;
 	struct IQUEUEHEAD rcv_buf;
-	IUINT32 *acklist;
-	IUINT32 ackcount;
-	IUINT32 ackblock;
+	IUINT32 nrcv_que;
+	struct IQUEUEHEAD rcv_queue;
+
+	IUINT32 nsnd_que;
+	struct IQUEUEHEAD snd_queue;
+	IUINT32 nsnd_buf;
+	struct IQUEUEHEAD snd_buf;
+	
+	IUINT32 *acklist; //收到数据包需要进行确认的序列号和时间戳
+	IUINT32 ackcount; //收到数据包需要进行确认的个数
+	IUINT32 ackblock; //内存申请的大小capacity
 	void *user;
-	char *buffer;
-	int fastresend;
-	int nocwnd;
+	char *buffer; //组装发送数据的缓冲区
+	int fastresend; //开启快速重传
+	int nocwnd; //1 表示拥塞算法不影响窗口大小
 	int logmask;
 	int (*output)(const char *buf, int len, struct IKCPCB *kcp, void *user);
 	void (*writelog)(const char *log, struct IKCPCB *kcp, void *user);
 };
-
 
 typedef struct IKCPCB ikcpcb;
 
@@ -335,9 +369,13 @@ ikcpcb* ikcp_create(IUINT32 conv, void *user);
 // release kcp control object
 void ikcp_release(ikcpcb *kcp);
 
+//把rcv_queue的一个数据报放入buffer缓冲中
+//返回值为数据报的大小
+//应用层调用此方法可以处理buffer里的内容 = recv
 // user/upper level recv: returns size, returns below zero for EAGAIN
 int ikcp_recv(ikcpcb *kcp, char *buffer, int len);
 
+//把buffer里的数据放入snd_queue队列里
 // user/upper level send, returns below zero for error
 int ikcp_send(ikcpcb *kcp, const char *buffer, int len);
 
@@ -355,8 +393,10 @@ void ikcp_update(ikcpcb *kcp, IUINT32 current);
 // or optimize ikcp_update when handling massive kcp connections)
 IUINT32 ikcp_check(const ikcpcb *kcp, IUINT32 current);
 
+//把data数据放入rec_buf, rec_buf -> rec_que
 // when you received a low level packet (eg. UDP packet), call it
 int ikcp_input(ikcpcb *kcp, const char *data, long size);
+
 void ikcp_flush(ikcpcb *kcp);
 
 int ikcp_peeksize(const ikcpcb *kcp);
@@ -371,7 +411,7 @@ int ikcp_wndsize(ikcpcb *kcp, int sndwnd, int rcvwnd);
 int ikcp_waitsnd(const ikcpcb *kcp);
 
 // fastest: ikcp_nodelay(kcp, 1, 20, 2, 1)
-// nodelay: 0:disable(default), 1:enable
+// nodelay: 0:disable(default), 1:enable  影响RTO不翻倍
 // interval: internal update timer interval in millisec, default is 100ms 
 // resend: 0:disable fast resend(default), 1:enable fast resend
 // nc: 0:normal congestion control(default), 1:disable congestion control
