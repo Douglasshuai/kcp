@@ -748,7 +748,7 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 
 		kcp->rmt_wnd = wnd;
 		ikcp_parse_una(kcp, una);
-		ikcp_shrink_buf(kcp);
+		ikcp_shrink_buf(kcp); //
 
 		if (cmd == IKCP_CMD_ACK) //收到确认包
 		{
@@ -756,7 +756,7 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 				ikcp_update_ack(kcp, _itimediff(kcp->current, ts));
 			}
 			ikcp_parse_ack(kcp, sn);
-			ikcp_shrink_buf(kcp);
+			ikcp_shrink_buf(kcp); //
 			if (ikcp_canlog(kcp, IKCP_LOG_IN_ACK)) {
 				ikcp_log(kcp, IKCP_LOG_IN_DATA, 
 					"input ack: sn=%lu rtt=%ld rto=%ld", sn, 
@@ -817,25 +817,25 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 		size -= len;
 	}
 
-	if (_itimediff(kcp->snd_una, una) > 0)
+	if (_itimediff(kcp->snd_una/*值增加了*/, una) > 0) //收到了些确认包
 	{
 		if (kcp->cwnd < kcp->rmt_wnd)
 		{
 			IUINT32 mss = kcp->mss;
-			if (kcp->cwnd < kcp->ssthresh)
+			if (kcp->cwnd < kcp->ssthresh) //慢启动算法：收到一个确认，则窗口+1
 			{
 				kcp->cwnd++;
 				kcp->incr += mss;
 			}
-			else 
+			else //拥塞避免算法: 收到cwnd个确认，则窗口+1
 			{
-				if (kcp->incr < mss) 
+				if (kcp->incr < mss)
 					kcp->incr = mss;
 				kcp->incr += (mss * mss) / kcp->incr + (mss / 16);
 				if ((kcp->cwnd + 1) * mss >= kcp->incr)
 					kcp->cwnd++;
 			}
-			if (kcp->cwnd > kcp->rmt_wnd) 
+			if (kcp->cwnd > kcp->rmt_wnd)
 			{
 				kcp->cwnd = kcp->rmt_wnd;
 				kcp->incr = kcp->rmt_wnd * mss;
@@ -1024,9 +1024,9 @@ void ikcp_flush(ikcpcb *kcp)
 			segment->xmit++;
 			kcp->xmit++;
 			if (kcp->nodelay == 0) {
-				segment->rto += kcp->rx_rto; //RTO翻2倍
+				segment->rto += kcp->rx_rto; //RTO翻1倍
 			}	else {
-				segment->rto += kcp->rx_rto / 2; //RTO翻1.5倍
+				segment->rto += kcp->rx_rto / 2; //RTO翻0.5倍
 			}
 			segment->resendts = current + segment->rto;
 			lost = 1;
