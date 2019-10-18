@@ -264,22 +264,22 @@ typedef struct IQUEUEHEAD iqueue_head;
 //=====================================================================
 // SEGMENT
 //=====================================================================
-struct IKCPSEG
+struct IKCPSEG //一个包
 {
 	struct IQUEUEHEAD node;
-	IUINT32 conv;
-	IUINT32 cmd;
-	IUINT32 frg;
-	IUINT32 wnd;
-	IUINT32 ts;
-	IUINT32 sn;
-	IUINT32 una;
-	IUINT32 len;
-	IUINT32 resendts;
-	IUINT32 rto;
-	IUINT32 fastack;
-	IUINT32 xmit;
-	char data[1];
+	IUINT32 conv; //一条连接一个conv或者一个客户端一个conv (外部实现)
+	IUINT32 cmd; //什么消息(数据包(部分包 or 完整包) or 确认包 or 询问远端窗口大小包 or 返回自己的窗口大小包)
+	IUINT32 frg; //非0为分片，表示此包为部分包; 为0，表示此包为完整包
+	IUINT32 wnd; //接收窗口大小
+	IUINT32 ts; //当前时间戳
+	IUINT32 sn; //当前序列号
+	IUINT32 una; //值之前的包都已确认(不包括此值)
+	IUINT32 len; //包的长度
+	IUINT32 resendts; //下次重传时间戳
+	IUINT32 rto; //超时重传时间
+	IUINT32 fastack; 
+	IUINT32 xmit; //传送次数
+	char data[1]; //内容
 };
 
 
@@ -288,31 +288,61 @@ struct IKCPSEG
 //---------------------------------------------------------------------
 struct IKCPCB
 {
-	IUINT32 conv, mtu, mss, state;
-	IUINT32 snd_una, snd_nxt, rcv_nxt;
-	IUINT32 ts_recent, ts_lastack, ssthresh;
-	IINT32 rx_rttval, rx_srtt, rx_rto, rx_minrto;
-	IUINT32 snd_wnd, rcv_wnd, rmt_wnd, cwnd, probe;
-	IUINT32 current, interval, ts_flush, xmit;
-	IUINT32 nrcv_buf, nsnd_buf;
-	IUINT32 nrcv_que, nsnd_que;
-	IUINT32 nodelay, updated;
-	IUINT32 ts_probe, probe_wait;
-	IUINT32 dead_link, incr;
+	IUINT32 conv; //一个连接一个PCB
+	IUINT32 mtu;
+	IUINT32 mss; //最大报文段
+	IUINT32 state; //-1为连接败失
+	IUINT32 snd_una; //此序列号之前的发送包全部已确认
+	IUINT32 rcv_nxt; //下一个想接收的序列号
+	IUINT32 snd_nxt; //下一个发送包的序列号
+	IUINT32 ts_recent;
+	IUINT32 ts_lastack;
+
+	IUINT32 ssthresh;
+	IINT32 rx_rttval;
+	IINT32 rx_srtt;
+	IINT32 rx_rto; //rto值(动态变化)
+	IINT32 rx_minrto; //rto下限
+
+	IUINT32 probe; //非0表示是否需要发送询问窗口大小包或窗口大小应答包
+	IUINT32 ts_probe; //等待询问是否对端接收窗口还为0的时间戳
+	IUINT32 probe_wait; //等待时间
+
+	IUINT32 cwnd; //拥塞窗口大小
+	IUINT32 snd_wnd; //发送窗口大小
+	IUINT32 rcv_wnd; //接收窗口大小
+	IUINT32 rmt_wnd; //远端接收窗口大小
+	IUINT32 current, interval, ts_flush;
+	IUINT32 xmit; //此连接总共发了多少个包(发送 + 超时重传)，除了快速重传
+	IUINT32 nodelay; //把rto调小
+	IUINT32 updated;
+	IUINT32 dead_link; //包重传次数上限
+	IUINT32 incr;
+
+	//process put data -> snd_queue -> snd_buf -> sendto
+	IUINT32 nsnd_que;
 	struct IQUEUEHEAD snd_queue;
-	struct IQUEUEHEAD rcv_queue;
+	IUINT32 nsnd_buf;
 	struct IQUEUEHEAD snd_buf;
+
+	//recvfrom -> rcv_buf -> rcv_queue -> process
+	IUINT32 nrcv_que; //上限为rcv_wnd
+	struct IQUEUEHEAD rcv_queue;
+	IUINT32 nrcv_buf;
 	struct IQUEUEHEAD rcv_buf;
-	IUINT32 *acklist;
-	IUINT32 ackcount;
-	IUINT32 ackblock;
+
+	IUINT32 *acklist; //对接收到的包之后需要发送确认包的队列
+	IUINT32 ackcount; //当前确认包个数
+	IUINT32 ackblock; //确认包队列申请容量
+
 	void *user;
 	char *buffer;
-	int fastresend;
-	int fastlimit;
-	int nocwnd, stream;
+	int fastresend; //超过此阈值时快速重传
+	int fastlimit; //触发快速重传个数上限
+	int nocwnd; //1表示不使用拥塞窗口大小
+	int stream;
 	int logmask;
-	int (*output)(const char *buf, int len, struct IKCPCB *kcp, void *user);
+	int (*output)(const char *buf, int len, struct IKCPCB *kcp, void *user); //发送api, 把buf[len]中的内容发给网络协议栈
 	void (*writelog)(const char *log, struct IKCPCB *kcp, void *user);
 };
 
