@@ -134,6 +134,7 @@ typedef unsigned long long IUINT64;
 #ifndef __IQUEUE_DEF__
 #define __IQUEUE_DEF__
 
+//双向循环链表
 struct IQUEUEHEAD {
 	struct IQUEUEHEAD *next, *prev;
 };
@@ -152,26 +153,28 @@ typedef struct IQUEUEHEAD iqueue_head;
 	(ptr)->next = (ptr), (ptr)->prev = (ptr))
 
 #define IOFFSETOF(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
-
 #define ICONTAINEROF(ptr, type, member) ( \
 		(type*)( ((char*)((type*)ptr)) - IOFFSETOF(type, member)) )
-
+//根据成员的内存地址推算出节点的首地址
 #define IQUEUE_ENTRY(ptr, type, member) ICONTAINEROF(ptr, type, member)
-
 
 //---------------------------------------------------------------------
 // queue operation                     
 //---------------------------------------------------------------------
+//node头部插入
 #define IQUEUE_ADD(node, head) ( \
 	(node)->prev = (head), (node)->next = (head)->next, \
 	(head)->next->prev = (node), (head)->next = (node))
 
+//node尾部插入
 #define IQUEUE_ADD_TAIL(node, head) ( \
 	(node)->prev = (head)->prev, (node)->next = (head), \
 	(head)->prev->next = (node), (head)->prev = (node))
 
+//删除(p, n)之间的节点
 #define IQUEUE_DEL_BETWEEN(p, n) ((n)->prev = (p), (p)->next = (n))
 
+//删除entry节点
 #define IQUEUE_DEL(entry) (\
 	(entry)->next->prev = (entry)->prev, \
 	(entry)->prev->next = (entry)->next, \
@@ -194,13 +197,10 @@ typedef struct IQUEUEHEAD iqueue_head;
 	for ((iterator) = iqueue_entry((head)->next, TYPE, MEMBER); \
 		&((iterator)->MEMBER) != (head); \
 		(iterator) = iqueue_entry((iterator)->MEMBER.next, TYPE, MEMBER))
-
 #define iqueue_foreach(iterator, head, TYPE, MEMBER) \
 	IQUEUE_FOREACH(iterator, head, TYPE, MEMBER)
-
 #define iqueue_foreach_entry(pos, head) \
 	for( (pos) = (head)->next; (pos) != (head) ; (pos) = (pos)->next )
-	
 
 #define __iqueue_splice(list, head) do {	\
 		iqueue_head *first = (list)->next, *last = (list)->prev; \
@@ -319,18 +319,22 @@ struct IKCPCB
 	IUINT32 dead_link; //包重传次数上限
 	IUINT32 incr;
 
+	//双向循环链表
 	//process put data -> snd_queue -> snd_buf -> sendto
 	IUINT32 nsnd_que;
-	struct IQUEUEHEAD snd_queue;
+	struct IQUEUEHEAD snd_queue; //等待发送包队列
+
 	IUINT32 nsnd_buf;
-	struct IQUEUEHEAD snd_buf;
+	struct IQUEUEHEAD snd_buf; //已经发送包的队列  队列大小为窗口控制
 
 	//recvfrom -> rcv_buf -> rcv_queue -> process
 	IUINT32 nrcv_que; //上限为rcv_wnd
-	struct IQUEUEHEAD rcv_queue;
-	IUINT32 nrcv_buf;
-	struct IQUEUEHEAD rcv_buf;
+	struct IQUEUEHEAD rcv_queue; //从网络接收到的包队列
 
+	IUINT32 nrcv_buf;
+	struct IQUEUEHEAD rcv_buf; //准备给上层提取的包队列 队列大小为窗口控制
+
+	//数组
 	IUINT32 *acklist; //对接收到的包之后需要发送确认包的队列
 	IUINT32 ackcount; //当前确认包个数
 	IUINT32 ackblock; //确认包队列申请容量

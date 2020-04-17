@@ -479,10 +479,10 @@ int ikcp_send(ikcpcb *kcp, const char *buffer, int len)
 
 	// append to previous segment in streaming mode (if possible)
 	if (kcp->stream != 0) {
-		if (!iqueue_is_empty(&kcp->snd_queue)) 
+		if (!iqueue_is_empty(&kcp->snd_queue))
 		{
 			IKCPSEG *old = iqueue_entry(kcp->snd_queue.prev, IKCPSEG, node);
-			if (old->len < kcp->mss) 
+			if (old->len < kcp->mss)
 			{
 				int capacity = kcp->mss - old->len;
 				int extend = (len < capacity)? len : capacity;
@@ -653,7 +653,8 @@ static void ikcp_ack_push(ikcpcb *kcp, IUINT32 sn, IUINT32 ts)
 		IUINT32 *acklist;
 		size_t newblock;
 
-		for (newblock = 8; newblock < newsize; newblock <<= 1);
+		for (newblock = 8; newblock < newsize; newblock <<= 1)
+			;
 		acklist = (IUINT32*)ikcp_malloc(newblock * sizeof(IUINT32) * 2);
 
 		if (acklist == NULL) {
@@ -889,20 +890,27 @@ int ikcp_input(ikcpcb *kcp, const char *data, long size)
 		ikcp_parse_fastack(kcp, maxack, latest_ts);
 	}
 
-	if (_itimediff(kcp->snd_una, prev_una) > 0) {
-		if (kcp->cwnd < kcp->rmt_wnd) {
+	if (_itimediff(kcp->snd_una, prev_una) > 0) 
+	{
+		if (kcp->cwnd < kcp->rmt_wnd) 
+		{
 			IUINT32 mss = kcp->mss;
-			if (kcp->cwnd < kcp->ssthresh) {
+			if (kcp->cwnd < kcp->ssthresh) 
+			{
 				kcp->cwnd++;
 				kcp->incr += mss;
-			}	else {
+			}
+			else
+			{
 				if (kcp->incr < mss) kcp->incr = mss;
 				kcp->incr += (mss * mss) / kcp->incr + (mss / 16);
-				if ((kcp->cwnd + 1) * mss <= kcp->incr) {
+				if ((kcp->cwnd + 1) * mss <= kcp->incr)
+				{
 					kcp->cwnd++;
 				}
 			}
-			if (kcp->cwnd > kcp->rmt_wnd) {
+			if (kcp->cwnd > kcp->rmt_wnd) 
+			{
 				kcp->cwnd = kcp->rmt_wnd;
 				kcp->incr = kcp->rmt_wnd * mss;
 			}
@@ -1160,7 +1168,7 @@ void ikcp_flush(ikcpcb *kcp)
 	}
 
 	//发生丢包，重新慢开始算法
-	if (lost) 
+	if (lost)
 	{
 		kcp->ssthresh = cwnd / 2;
 		if (kcp->ssthresh < IKCP_THRESH_MIN)
@@ -1169,7 +1177,7 @@ void ikcp_flush(ikcpcb *kcp)
 		kcp->incr = kcp->mss;
 	}
 
-	if (kcp->cwnd < 1) 
+	if (kcp->cwnd < 1)
 	{
 		kcp->cwnd = 1;
 		kcp->incr = kcp->mss;
